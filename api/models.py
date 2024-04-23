@@ -40,7 +40,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     mobile = models.IntegerField(null=True, unique=True)
     otp = models.CharField(max_length=32, blank=True, null=True)
     is_verified = models.BooleanField(default=False)
-    name = models.CharField(max_length=200, unique=True, null=True)
+    username = models.CharField(max_length=200, unique=True, null=True)
+    name = models.CharField(max_length=200,null=True)
     groups = models.ManyToManyField(Group, related_name='user_set', blank=True, verbose_name=_('groups'))
     user_permissions = models.ManyToManyField(Permission, related_name='user_set', blank=True, verbose_name=_('user permissions'))
     otp_secret_key = models.CharField(max_length=32, blank=True, null=True)
@@ -133,15 +134,27 @@ class Cart(models.Model):
 
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    product = models.ForeignKey(Products, on_delete=models.CASCADE)
-    product_name = models.CharField(max_length=100)
-    product_image1 = models.ImageField(upload_to='product_images/')
-    offer_price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.PositiveIntegerField(default=1)
+    payment_method = models.CharField(max_length=100, choices=[('COD', 'Cash on Delivery'), ('Online', 'Online Payment')])
+    product_ids = models.CharField(max_length=255,null=True)
+    product_names = models.CharField(max_length=255,null=True)
+    total_price = models.FloatField(default=0.00)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.username}'s Order for {self.product_name}"
+        return f"Order #{self.id}"
+
+    
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Products, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=100)
+    product_image1 = models.ImageField(upload_to='product_images/')
+    offer_price = models.FloatField(null=True)  # Allow null values
+    quantity = models.PositiveIntegerField(default=1)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product_name} - Quantity: {self.quantity} - Total: {self.total_price}"
 
 
 class Review(models.Model):

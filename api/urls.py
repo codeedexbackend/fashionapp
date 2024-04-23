@@ -41,8 +41,12 @@ urlpatterns = [
     path('view-wishlist/<int:user_id>/', views.ViewWishlistView.as_view(), name='view_wishlist'),
 
     path('checkout/<int:user_id>/<int:cart_id>/', views.CheckoutView.as_view(), name='checkout'),
-    path('orders/<int:user_id>/', views.OrderListView.as_view(), name='user-order-list'),
+    path('order/<int:user_id>/', views.UserOrdersView.as_view(), name='user_orders'),
 
 
-
+    path('products/ascending/<int:user_id>/', views.ProductsByPriceAscendingView.as_view(), name='products-by-price-ascending'),
+    path('products/descending/<int:user_id>/', views.ProductsByPriceDescendingView.as_view(), name='products-by-price-descending'),
 ]
+
+
+

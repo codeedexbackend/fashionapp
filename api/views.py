@@ -336,6 +336,44 @@ class ProductUserSingleView(APIView):
         return Response(serializer.data)
 
 
+class ProductsByPriceAscendingView(APIView):
+    pagination_class = CustomPageNumberPagination
+
+    def get(self, request, user_id):
+        # Retrieve products associated with the given user ID and sort them by price in ascending order
+        products = Products.objects.all().order_by('Price')
+
+        # Get the user's wishlist items
+        wishlist_products = Wishlist.objects.filter(user_id=user_id).values_list('product_id', flat=True)
+
+        # Paginate the products
+        paginator = self.pagination_class()
+        paginated_products = paginator.paginate_queryset(products, request)
+
+        # Serialize the products
+        serializer = ProductSerializer(paginated_products, many=True, context={'request': request, 'wishlist_products': wishlist_products})
+
+        return paginator.get_paginated_response(serializer.data)
+
+class ProductsByPriceDescendingView(APIView):
+    pagination_class = CustomPageNumberPagination
+
+    def get(self, request, user_id):
+        # Retrieve products associated with the given user ID and sort them by price in descending order
+        products = Products.objects.all().order_by('-Price')
+
+        # Get the user's wishlist items
+        wishlist_products = Wishlist.objects.filter(user_id=user_id).values_list('product_id', flat=True)
+
+        # Paginate the products
+        paginator = self.pagination_class()
+        paginated_products = paginator.paginate_queryset(products, request)
+
+        # Serialize the products
+        serializer = ProductSerializer(paginated_products, many=True, context={'request': request, 'wishlist_products': wishlist_products})
+
+        return paginator.get_paginated_response(serializer.data)
+
 
 
 class AddToCartView(APIView):
@@ -462,28 +500,77 @@ class ViewWishlistView(APIView):
             'previous': page.previous_page_number() if page.has_previous() else None
         })
 
+
 class CheckoutView(APIView):
     def post(self, request, user_id, cart_id):
         try:
             with transaction.atomic():
                 total_price = 0
-                cart_items = Cart.objects.filter(user_id=user_id, id=cart_id)
+                # Retrieve cart items for the specific user
+                cart_items = Cart.objects.filter(user_id=user_id)
 
                 if not cart_items.exists():
                     return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
 
-                # Calculate total price and delete cart items
-                for cart_item in cart_items:
-                    product = cart_item.product
-                    total_price += product.Offer_Price * cart_item.quantity
-                    cart_item.delete()
+                # Initialize lists to store product IDs and names
+                product_ids = []
+                product_names = []
 
-                # Create order or record checkout information
-                # For simplicity, just return the total price
-                return Response({'message': 'Checkout successful', 'total_price': total_price}, status=status.HTTP_200_OK)
+                # Calculate total price and collect product IDs and names
+                for cart_item in cart_items:
+                    total_price += cart_item.product.Offer_Price * cart_item.quantity
+                    product_ids.append(cart_item.product.id)
+                    product_names.append(cart_item.product.Product_Name)
+
+                # Create order
+                order = Order.objects.create(
+                    user_id=user_id,
+                    payment_method='Cash on Delivery',  # Change this if you have a payment method from the request
+                    total_price=total_price,
+                    product_ids= product_ids,
+                    product_names= product_names
+
+                )
+
+                # Delete cart items
+                cart_items.delete()
+
+                # Serialize the order
+                order_serializer = OrderSerializer(order)
+
+                # Add the total cart price and payment method to the response data
+                response_data = {
+                    'message': 'Checkout successful',
+                    'order': order_serializer.data,
+                    
+                }
+
+                return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class UserOrdersView(APIView):
+    def get(self, request, user_id):
+        try:
+            # Retrieve orders for the specific user
+            orders = Order.objects.filter(user_id=user_id)
+
+            # Serialize the orders
+            order_serializer = OrderSerializer(orders, many=True)
+
+            # Return the serialized orders in the response
+            return Response(order_serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
+
+        
 class OrderListView(ListAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
